@@ -1,0 +1,50 @@
+version: "3.9"
+
+services:
+
+  # ── Telegram Local Bot API Server ──────────────────────────────────────────
+  # Removes the 50 MB file upload limit (allows up to 2 GB).
+  telegram-bot-api:
+    image: aiogram/telegram-bot-api:latest
+    restart: unless-stopped
+    environment:
+      TELEGRAM_API_ID: ${TELEGRAM_API_ID}
+      TELEGRAM_API_HASH: ${TELEGRAM_API_HASH}
+      TELEGRAM_LOCAL: 1
+    ports:
+      - "8081:8081"
+    volumes:
+      - telegram-bot-api-data:/var/lib/telegram-bot-api
+
+  # ── Redis ──────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis-data:/data
+
+  # ── Bot ────────────────────────────────────────────────────────────────────
+  bot:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - redis
+      - telegram-bot-api
+    environment:
+      TELEGRAM_TOKEN: ${TELEGRAM_TOKEN}
+      TELEGRAM_LOCAL_API: http://telegram-bot-api:8081
+      STORAGE_CHANNEL_ID: ${STORAGE_CHANNEL_ID}
+      REDIS_ADDR: redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      WORKER_COUNT: ${WORKER_COUNT:-5}
+      MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-500}
+      CACHE_TTL_DAYS: ${CACHE_TTL_DAYS:-30}
+      RATE_LIMIT_PER_HOUR: ${RATE_LIMIT_PER_HOUR:-5}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - /tmp/tg-video-bot:/tmp/tg-video-bot
+
+volumes:
+  redis-data:
+  telegram-bot-api-data:
