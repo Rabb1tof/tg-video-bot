@@ -1,9 +1,6 @@
-version: "3.9"
-
 services:
 
   # ── Telegram Local Bot API Server ──────────────────────────────────────────
-  # Removes the 50 MB file upload limit (allows up to 2 GB).
   telegram-bot-api:
     image: aiogram/telegram-bot-api:latest
     restart: unless-stopped
@@ -26,7 +23,7 @@ services:
 
   # ── Bot ────────────────────────────────────────────────────────────────────
   bot:
-    build: .
+    image: ghcr.io/rabb1tof/tg-video-bot:latest
     restart: unless-stopped
     depends_on:
       - redis
