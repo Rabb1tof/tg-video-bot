@@ -32,7 +32,7 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel}))
 	slog.SetDefault(logger)
 
-	logger.Info("tg-video-bot starting", "version", "1.0.0")
+	logger.Info("tg-video-bot starting", "version", "1.2.0")
 
 	// ── Redis ──────────────────────────────────────────────────────────────
 	redisCache := cache.New(cfg.RedisAddr, cfg.RedisPassword, cfg.RedisDB, cfg.RedisPoolSize, cfg.CacheTTL, cfg.HotCacheTTL)
