@@ -1,19 +1,19 @@
 # tg-video-bot
 
 Telegram-бот для скачивания видео через **Inline Mode** и личные сообщения.  
-Напиши `@yourbot https://youtube.com/...` в любом чате — видео появится мгновенно из кэша или скачается в фоне с уведомлением в ЛС.
+Напиши `@VidqueBot https://youtube.com/...` в любом чате — видео появится мгновенно из кэша или скачается в фоне с уведомлением в ЛС.
 
 Поддерживает YouTube, Instagram Reels, TikTok, Twitter/X, VK и [1000+ платформ](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md) через `yt-dlp`.
 
-[![Release](https://img.shields.io/github/v/release/your-org/tg-video-bot)](https://github.com/your-org/tg-video-bot/releases)
-[![Docker](https://img.shields.io/badge/docker-ghcr.io-blue)](https://ghcr.io/your-org/tg-video-bot)
+[![Release](https://img.shields.io/github/v/release/Rabb1tof/tg-video-bot)](https://github.com/Rabb1tof/tg-video-bot/releases)
+[![Docker](https://img.shields.io/badge/docker-ghcr.io-blue)](https://ghcr.io/Rabb1tof/tg-video-bot)
 
 ---
 
 ## Возможности
 
 - **Inline-режим** — вставляй видео в любой чат без пересылки
-- **История** — `@yourbot` без ссылки показывает последние скачанные видео
+- **История** — `@VidqueBot` без ссылки показывает последние скачанные видео
 - **Умный кэш** — топ-3 видео пользователя хранится дольше обычного
 - **Инвалидация кэша** — после загрузки история в inline обновляется мгновенно
 - **Ссылки без протокола** — `youtube.com/watch?v=...` работает без `https://`
@@ -67,8 +67,8 @@ Telegram Servers ──► Bot (Go)
 1. Создай бота через [@BotFather](https://t.me/BotFather):
    ```
    /newbot
-   /setinline @yourbot
-   /setinlinefeedback @yourbot
+   /setinline @VidqueBot
+   /setinlinefeedback @VidqueBot
    ```
 
 2. Создай **приватный канал**, добавь бота администратором с правом публикации.  
@@ -90,7 +90,7 @@ docker compose up -d --build
 docker compose logs -f bot
 ```
 
-Готово. Напиши `@yourbot https://youtu.be/dQw4w9WgXcQ` в любом чате.
+Готово. Напиши `@VidqueBot https://youtu.be/dQw4w9WgXcQ` в любом чате.
 
 ---
 
@@ -165,14 +165,14 @@ tg-video-bot/
 
 Образ доступен по адресу:
 ```
-ghcr.io/your-org/tg-video-bot:latest
-ghcr.io/your-org/tg-video-bot:v1.2.3
+ghcr.io/Rabb1tof/tg-video-bot:latest
+ghcr.io/Rabb1tof/tg-video-bot:v1.2.3
 ```
 
 Деплой через образ:
 ```bash
-docker pull ghcr.io/your-org/tg-video-bot:latest
-# В docker-compose.yml замени build: . на image: ghcr.io/your-org/tg-video-bot:latest
+docker pull ghcr.io/Rabb1tof/tg-video-bot:latest
+# В docker-compose.yml замени build: . на image: ghcr.io/Rabb1tof/tg-video-bot:latest
 ```
 
 ---
