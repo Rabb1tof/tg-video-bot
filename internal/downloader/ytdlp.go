@@ -50,7 +50,7 @@ func (d *Downloader) Download(ctx context.Context, url string) (*Result, error) 
 		return nil, fmt.Errorf("create temp dir: %w", err)
 	}
 
-	outputTemplate := "%(title).80s.%(ext)s"
+	outputTemplate := "video.%(ext)s"
 
 	args := []string{
 		"-f", "best",

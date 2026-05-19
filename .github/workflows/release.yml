@@ -136,5 +136,4 @@ jobs:
       - name: Trigger Easy Panel Deploy
         run: |
           curl -X POST "http://178.17.51.21:3000/api/compose/deploy/ca706ab20f87fb1f38d937331e9a51e20e9d05c322689a29" \
-            -H "Authorization: Bearer ${{ secrets.EASY_PANEL_TOKEN }}" \
-            -H "Content-Type: application/json"
+            -H "Authorization: Bearer ${{ secrets.EASY_PANEL_TOKEN }}"
