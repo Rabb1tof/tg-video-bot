@@ -99,12 +99,12 @@ func (h *Handler) showVideoHistoryInline(q *tgbotapi.InlineQuery) {
 	history, err := h.cache.GetVideoHistory(ctx, q.From.ID)
 	if err != nil {
 		h.log.Error("get video history failed", "err", err)
-		h.answerInline(q.ID, []interface{}{usageArticle(h.api.Self.UserName)}, 300)
+		h.answerInlinePersonal(q.ID, []interface{}{usageArticle(h.api.Self.UserName)}, 300, true)
 		return
 	}
 
 	if len(history) == 0 {
-		h.answerInline(q.ID, []interface{}{usageArticle(h.api.Self.UserName)}, 30)
+		h.answerInlinePersonal(q.ID, []interface{}{usageArticle(h.api.Self.UserName)}, 30, true)
 		return
 	}
 
@@ -121,7 +121,7 @@ func (h *Handler) showVideoHistoryInline(q *tgbotapi.InlineQuery) {
 		results = append(results, result)
 	}
 
-	h.answerInline(q.ID, results, 300)
+	h.answerInlinePersonal(q.ID, results, 300, true)
 }
 
 func (h *Handler) handleInlineCommand(q *tgbotapi.InlineQuery, command string) {
@@ -153,10 +153,18 @@ func (h *Handler) handleInlineCommand(q *tgbotapi.InlineQuery, command string) {
 }
 
 func (h *Handler) answerInline(queryID string, results []interface{}, cacheTime int) {
+	h.answerInlinePersonal(queryID, results, cacheTime, false)
+}
+
+// answerInlinePersonal sends answerInlineQuery with optional is_personal flag.
+// is_personal=true prevents Telegram from serving a cached response from one
+// user to another — required for per-user history shown on empty query.
+func (h *Handler) answerInlinePersonal(queryID string, results []interface{}, cacheTime int, isPersonal bool) {
 	cfg := tgbotapi.InlineConfig{
 		InlineQueryID: queryID,
 		Results:       results,
 		CacheTime:     cacheTime,
+		IsPersonal:    isPersonal,
 	}
 	if _, err := h.api.Request(cfg); err != nil {
 		h.log.Error("answerInlineQuery failed", "query_id", queryID, "err", err)
