@@ -9,6 +9,12 @@ import (
 	"strings"
 )
 
+// UnavailableError is returned when yt-dlp reports that the video is private
+// or otherwise inaccessible (not a transient network error).
+type UnavailableError struct{ msg string }
+
+func (e *UnavailableError) Error() string { return e.msg }
+
 // Result represents a successfully downloaded video.
 type Result struct {
 	FilePath string // absolute path to the .mp4 file
@@ -18,13 +24,22 @@ type Result struct {
 
 // Downloader wraps the yt-dlp binary.
 type Downloader struct {
-	baseDir   string
-	maxSizeMB int
+	baseDir     string
+	maxSizeMB   int
+	cookiesFile string // путь к Netscape cookies.txt, пусто если не задан
+	vkUsername  string
+	vkPassword  string
 }
 
-func New(baseDir string, maxSizeMB int) *Downloader {
+func New(baseDir string, maxSizeMB int, cookiesFile, vkUsername, vkPassword string) *Downloader {
 	_ = os.MkdirAll(baseDir, 0o755)
-	return &Downloader{baseDir: baseDir, maxSizeMB: maxSizeMB}
+	return &Downloader{
+		baseDir:     baseDir,
+		maxSizeMB:   maxSizeMB,
+		cookiesFile: cookiesFile,
+		vkUsername:  vkUsername,
+		vkPassword:  vkPassword,
+	}
 }
 
 // Download fetches the video at url.
@@ -45,8 +60,17 @@ func (d *Downloader) Download(ctx context.Context, url string) (*Result, error) 
 		"--no-warnings",
 		"--print", "title",
 		"--no-simulate",
-		url,
 	}
+
+	// Глобальные куки (применяются ко всем платформам если заданы)
+	if d.cookiesFile != "" {
+		args = append(args, "--cookies", d.cookiesFile)
+	}
+
+	// Per-domain аргументы
+	args = append(args, d.platformArgs(url)...)
+
+	args = append(args, url)
 
 	cmd := exec.CommandContext(ctx, "/usr/local/bin/yt-dlp", args...)
 	cmd.Dir = tmpDir
@@ -68,7 +92,11 @@ func (d *Downloader) Download(ctx context.Context, url string) (*Result, error) 
 		if msg == "" {
 			msg = err.Error()
 		}
-		return nil, fmt.Errorf("yt-dlp: %s (stderr: %s, stdout: %s)", sanitizeError(msg), stderrStr, stdoutStr)
+		clean := sanitizeError(msg)
+		if clean == "это видео недоступно для скачивания" {
+			return nil, &UnavailableError{msg: clean}
+		}
+		return nil, fmt.Errorf("yt-dlp: %s (stderr: %s, stdout: %s)", clean, stderrStr, stdoutStr)
 	}
 
 	entries, err := os.ReadDir(tmpDir)
@@ -115,9 +143,46 @@ func Version(ctx context.Context) string {
 	return strings.TrimSpace(string(out))
 }
 
-// sanitizeError trims noisy yt-dlp stderr prefixes.
+// platformArgs returns extra yt-dlp arguments for the given URL based on domain.
+//
+// TikTok requires curl_cffi browser impersonation to bypass bot-detection.
+// VK requires either a cookies file or username/password credentials.
+func (d *Downloader) platformArgs(rawURL string) []string {
+	lower := strings.ToLower(rawURL)
+
+	switch {
+	case strings.Contains(lower, "tiktok.com") || strings.Contains(lower, "vm.tiktok.com"):
+		// curl_cffi must be installed; impersonation bypasses TikTok JS bot checks
+		return []string{"--impersonate", "chrome"}
+
+	case strings.Contains(lower, "vk.com") || strings.Contains(lower, "vk.ru") ||
+		strings.Contains(lower, "vkvideo.ru"):
+		var extra []string
+		if d.vkUsername != "" && d.vkPassword != "" {
+			extra = append(extra, "--username", d.vkUsername, "--password", d.vkPassword)
+		}
+		return extra
+	}
+
+	return nil
+}
+
+// sanitizeError trims noisy yt-dlp stderr prefixes and maps known errors to
+// user-friendly messages.
 func sanitizeError(s string) string {
 	s = strings.TrimPrefix(s, "ERROR: ")
+
+	// Приватные/недоступные видео — понятное сообщение вместо технической ошибки
+	if strings.Contains(s, "only available to signed-in users") ||
+		strings.Contains(s, "only available for registered users") ||
+		strings.Contains(s, "This video is private") ||
+		strings.Contains(s, "Private video") ||
+		strings.Contains(s, "members-only") ||
+		strings.Contains(s, "This video is not available") ||
+		strings.Contains(s, "Video unavailable") {
+		return "это видео недоступно для скачивания"
+	}
+
 	if len(s) > 300 {
 		s = s[:300] + "…"
 	}

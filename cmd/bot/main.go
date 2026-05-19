@@ -56,7 +56,7 @@ func main() {
 		logger.Info("yt-dlp ready", "version", downloader.Version(ctx))
 		cancel()
 	}
-	dl := downloader.New("/tmp/tg-video-bot", cfg.MaxFileSizeMB)
+	dl := downloader.New("/tmp/tg-video-bot", cfg.MaxFileSizeMB, cfg.CookiesFile, cfg.VKUsername, cfg.VKPassword)
 
 	// ── Telegram Bot API (local server) ────────────────────────────────────
 	// The local Bot API server removes the 50 MB upload limit (up to 2 GB).

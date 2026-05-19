@@ -24,6 +24,11 @@ type Config struct {
 	HotCacheTTL      time.Duration // TTL для видео в топ-3 истории пользователей
 	RateLimitPerHour int
 	LogLevel         string
+
+	// Авторизация для платформ, требующих логина
+	CookiesFile string // путь к cookies.txt в Netscape-формате (для VK, TikTok и др.)
+	VKUsername  string // логин ВКонтакте (альтернатива cookies)
+	VKPassword  string // пароль ВКонтакте
 }
 
 func Load() *Config {
@@ -41,6 +46,9 @@ func Load() *Config {
 		HotCacheTTL:      time.Duration(getInt("HOT_CACHE_TTL_HOURS", 168)) * time.Hour, // 168h = 7 дней для топ-3
 		RateLimitPerHour: getInt("RATE_LIMIT_PER_HOUR", 5),
 		LogLevel:         getEnv("LOG_LEVEL", "info"),
+		CookiesFile:      getEnv("COOKIES_FILE", ""),
+		VKUsername:       getEnv("VK_USERNAME", ""),
+		VKPassword:       getEnv("VK_PASSWORD", ""),
 	}
 }
 

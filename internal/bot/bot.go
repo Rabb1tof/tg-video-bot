@@ -117,17 +117,21 @@ func (h *Handler) handleMessage(msg *tgbotapi.Message) {
 		ctx := context.Background()
 
 		// Check if video is in cache
-		fileID, err := h.cache.GetFileID(ctx, normalizedText)
+		cached, err := h.cache.GetCachedVideo(ctx, normalizedText)
 		if err != nil {
 			h.log.Error("cache get error", "err", err)
 		}
 
-		if fileID != "" {
-			// Продлеваем TTL если видео в топ-3 истории пользователя
-			go h.cache.RefreshFileIDTTL(ctx, normalizedText, msg.From.ID)
+		if cached != nil {
+			go func() {
+				// Продлеваем TTL если видео в топ-3 истории пользователя
+				h.cache.RefreshFileIDTTL(ctx, normalizedText, msg.From.ID)
+				// Добавляем в историю этого пользователя (если ещё нет)
+				h.addToHistoryIfNew(ctx, msg.From.ID, normalizedText, cached)
+			}()
 
 			// Send cached video immediately
-			videoMsg := tgbotapi.NewVideo(msg.Chat.ID, tgbotapi.FileID(fileID))
+			videoMsg := tgbotapi.NewVideo(msg.Chat.ID, tgbotapi.FileID(cached.FileID))
 			videoMsg.Caption = "📹 Видео из кэша"
 			if _, err := h.api.Send(videoMsg); err != nil {
 				h.log.Error("send cached video failed", "err", err)
@@ -199,6 +203,36 @@ func (h *Handler) handleClearCommand(msg *tgbotapi.Message) {
 	}
 
 	h.reply(msg, "✅ История очищена")
+}
+
+// addToHistoryIfNew добавляет видео в историю пользователя при cache hit,
+// только если этого fileID ещё нет в его истории.
+func (h *Handler) addToHistoryIfNew(ctx context.Context, userID int64, url string, cv *cache.CachedVideo) {
+	history, err := h.cache.GetVideoHistory(ctx, userID)
+	if err != nil {
+		h.log.Error("get video history failed", "err", err, "user_id", userID)
+		return
+	}
+	for _, v := range history {
+		if v.FileID == cv.FileID {
+			return // уже есть
+		}
+	}
+	title := cv.Title
+	if title == "" {
+		title = url
+	}
+	if err := h.cache.AddVideoHistory(ctx, userID, cache.VideoHistory{
+		FileID:  cv.FileID,
+		Title:   title,
+		AddedAt: time.Now(),
+	}); err != nil {
+		h.log.Error("add video history failed", "err", err, "user_id", userID)
+		return
+	}
+	if err := h.cache.IncrInlineVersion(ctx, userID); err != nil {
+		h.log.Error("incr inline version failed", "err", err, "user_id", userID)
+	}
 }
 
 func (h *Handler) reply(msg *tgbotapi.Message, text string) {

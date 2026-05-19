@@ -17,6 +17,12 @@ type VideoHistory struct {
 	AddedAt time.Time
 }
 
+// CachedVideo is the value stored per URL in Redis.
+type CachedVideo struct {
+	FileID string
+	Title  string
+}
+
 // Cache wraps Redis with high-level bot operations.
 type Cache struct {
 	client *redis.Client
@@ -42,29 +48,43 @@ func (c *Cache) Ping(ctx context.Context) error {
 	return c.client.Ping(ctx).Err()
 }
 
-// GetFileID returns the Telegram file_id cached for the URL, or "" if not found.
-func (c *Cache) GetFileID(ctx context.Context, url string) (string, error) {
+// GetCachedVideo returns the CachedVideo for the URL, or nil if not found.
+func (c *Cache) GetCachedVideo(ctx context.Context, url string) (*CachedVideo, error) {
 	val, err := c.client.Get(ctx, fileKey(url)).Result()
 	if err == redis.Nil {
-		return "", nil
+		return nil, nil
 	}
 	if err != nil {
-		return "", fmt.Errorf("cache get: %w", err)
+		return nil, fmt.Errorf("cache get: %w", err)
 	}
-	return val, nil
+	var cv CachedVideo
+	if err := json.Unmarshal([]byte(val), &cv); err != nil {
+		// Backward-compat: old entries stored bare file_id string
+		return &CachedVideo{FileID: val}, nil
+	}
+	return &cv, nil
 }
 
-// SetFileID stores a file_id for a URL with the configured TTL.
-func (c *Cache) SetFileID(ctx context.Context, url, fileID string) error {
-	return c.client.Set(ctx, fileKey(url), fileID, c.ttl).Err()
+// SetCachedVideo stores a file_id + title for a URL with the configured TTL.
+func (c *Cache) SetCachedVideo(ctx context.Context, url, fileID, title string) error {
+	data, err := json.Marshal(CachedVideo{FileID: fileID, Title: title})
+	if err != nil {
+		return fmt.Errorf("marshal cached video: %w", err)
+	}
+	return c.client.Set(ctx, fileKey(url), data, c.ttl).Err()
 }
 
 // RefreshFileIDTTL продлевает TTL file_id если видео находится в топ-3 истории пользователя.
 // Вызывается при каждом cache-хите.
 func (c *Cache) RefreshFileIDTTL(ctx context.Context, url string, userID int64) error {
-	fileID, err := c.client.Get(ctx, fileKey(url)).Result()
+	raw, err := c.client.Get(ctx, fileKey(url)).Result()
 	if err != nil {
 		return nil
+	}
+
+	var cv CachedVideo
+	if err := json.Unmarshal([]byte(raw), &cv); err != nil {
+		cv.FileID = raw // backward-compat
 	}
 
 	// Проверяем, есть ли этот fileID в топ-3 истории пользователя
@@ -77,7 +97,7 @@ func (c *Cache) RefreshFileIDTTL(ctx context.Context, url string, userID int64) 
 	isHot := false
 	for _, val := range vals {
 		var v VideoHistory
-		if json.Unmarshal([]byte(val), &v) == nil && v.FileID == fileID {
+		if json.Unmarshal([]byte(val), &v) == nil && v.FileID == cv.FileID {
 			isHot = true
 			break
 		}

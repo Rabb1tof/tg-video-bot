@@ -44,8 +44,12 @@ services:
       HOT_CACHE_TTL_HOURS: ${HOT_CACHE_TTL_HOURS:-168}
       RATE_LIMIT_PER_HOUR: ${RATE_LIMIT_PER_HOUR:-50}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      COOKIES_FILE: ${COOKIES_FILE:-}
+      VK_USERNAME: ${VK_USERNAME:-}
+      VK_PASSWORD: ${VK_PASSWORD:-}
     volumes:
       - /tmp/tg-video-bot:/tmp/tg-video-bot
+      - ${COOKIES_DIR:-./cookies}:/cookies:ro
 
 volumes:
   redis-data:

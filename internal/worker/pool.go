@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -103,7 +104,12 @@ func (p *Pool) process(ctx context.Context, job Job, workerID int) {
 	result, err := p.dl.Download(ctx, job.URL)
 	if err != nil {
 		log.Error("download failed", "err", err)
-		p.notify(job.UserID, fmt.Sprintf("❌ Не удалось скачать видео:\n%s", err.Error()))
+		var unavail *downloader.UnavailableError
+		if errors.As(err, &unavail) {
+			p.notify(job.UserID, "❌ "+unavail.Error())
+		} else {
+			p.notify(job.UserID, fmt.Sprintf("❌ Не удалось скачать видео:\n%s", err.Error()))
+		}
 		return
 	}
 	defer p.dl.Cleanup(result.TmpDir)
@@ -129,7 +135,7 @@ func (p *Pool) process(ctx context.Context, job Job, workerID int) {
 	fileID := msg.Video.FileID
 	log.Info("uploaded", "file_id", fileID, "elapsed", time.Since(start))
 
-	if err := p.cache.SetFileID(ctx, job.URL, fileID); err != nil {
+	if err := p.cache.SetCachedVideo(ctx, job.URL, fileID, result.Title); err != nil {
 		log.Error("cache write failed", "err", err)
 	}
 

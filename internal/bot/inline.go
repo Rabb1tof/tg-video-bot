@@ -44,16 +44,20 @@ func (h *Handler) handleInline(q *tgbotapi.InlineQuery) {
 	ctx := context.Background()
 
 	// Cache hit → instant response
-	fileID, err := h.cache.GetFileID(ctx, normalizedQuery)
+	cached, err := h.cache.GetCachedVideo(ctx, normalizedQuery)
 	if err != nil {
 		log.Error("cache get error", "err", err)
 	}
-	if fileID != "" {
-		log.Info("cache hit", "file_id", fileID)
-		// Продлеваем TTL если видео в топ-3 истории пользователя
-		go h.cache.RefreshFileIDTTL(ctx, normalizedQuery, q.From.ID)
+	if cached != nil {
+		log.Info("cache hit", "file_id", cached.FileID)
+		go func() {
+			// Продлеваем TTL если видео в топ-3 истории пользователя
+			h.cache.RefreshFileIDTTL(ctx, normalizedQuery, q.From.ID)
+			// Добавляем в историю этого пользователя (если ещё нет)
+			h.addToHistoryIfNew(ctx, q.From.ID, normalizedQuery, cached)
+		}()
 		result := tgbotapi.NewInlineQueryResultCachedVideo(
-			"cached-"+shortHash(normalizedQuery), fileID, "▶️ Видео",
+			"cached-"+shortHash(normalizedQuery), cached.FileID, "▶️ Видео",
 		)
 		h.answerInline(q.ID, []interface{}{result}, 300)
 		return
