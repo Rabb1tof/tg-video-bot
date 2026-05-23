@@ -15,6 +15,9 @@
 *.test
 *.out
 coverage.txt
+coverage
+cache_cov
+cache_cov.*
 
 # IDE
 .idea/

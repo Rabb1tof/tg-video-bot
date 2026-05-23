@@ -90,9 +90,9 @@ func (m *mockPoolCache) IncrInlineVersion(_ context.Context, _ int64) error {
 }
 
 type mockPoolDB struct {
-	mu            sync.Mutex
-	recordCalls   []bool
-	recordErr     error
+	mu          sync.Mutex
+	recordCalls []bool
+	recordErr   error
 }
 
 func (m *mockPoolDB) RecordDownload(_ context.Context, _ int64, _, _ string, success bool) error {
@@ -102,19 +102,31 @@ func (m *mockPoolDB) RecordDownload(_ context.Context, _ int64, _, _ string, suc
 	return m.recordErr
 }
 
+func (m *mockPoolDB) recordCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.recordCalls)
+}
+
+func (m *mockPoolDB) recordFirst() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.recordCalls[0]
+}
+
 // ── test pool constructor ─────────────────────────────────────────────────────
 
 func newProcessTestPool(dl videoDownloader, api telegramSender, c poolCache, d poolDB) *Pool {
 	return &Pool{
-		size:      2,
-		jobs:      make(chan Job, 8),
-		cache:     c,
-		db:        d,
-		dl:        dl,
-		api:       api,
-		channelID: -100123,
+		size:        2,
+		jobs:        make(chan Job, 8),
+		cache:       c,
+		db:          d,
+		dl:          dl,
+		api:         api,
+		channelID:   -100123,
 		botUsername: "testbot",
-		log:       slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
+		log:         slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
 	}
 }
 
@@ -136,10 +148,10 @@ func TestProcess_DownloadError(t *testing.T) {
 		t.Error("expected PM notification on download error")
 	}
 	// failure recorded in DB
-	if len(db.recordCalls) == 0 {
+	if db.recordCount() == 0 {
 		t.Error("expected RecordDownload call on failure")
 	}
-	if db.recordCalls[0] != false {
+	if db.recordFirst() != false {
 		t.Error("expected success=false recorded")
 	}
 	// inProgress cleaned up
@@ -181,10 +193,10 @@ func TestProcess_TelegramUploadError(t *testing.T) {
 	p.inProgress.Store(job.URL, job)
 	p.process(context.Background(), job, 1)
 
-	if len(db.recordCalls) == 0 {
+	if db.recordCount() == 0 {
 		t.Error("expected RecordDownload on upload failure")
 	}
-	if db.recordCalls[0] != false {
+	if db.recordFirst() != false {
 		t.Error("expected success=false on upload failure")
 	}
 }
@@ -215,10 +227,10 @@ func TestProcess_Success(t *testing.T) {
 		t.Error("expected video added to history")
 	}
 	// DB recorded success
-	if len(db.recordCalls) == 0 {
+	if db.recordCount() == 0 {
 		t.Error("expected RecordDownload call")
 	}
-	if db.recordCalls[0] != true {
+	if db.recordFirst() != true {
 		t.Error("expected success=true recorded")
 	}
 	// Cleanup called
@@ -270,7 +282,7 @@ func TestProcess_CacheWriteError(t *testing.T) {
 	p.process(context.Background(), job, 1)
 
 	// Should continue despite cache error
-	if len(db.recordCalls) == 0 {
+	if db.recordCount() == 0 {
 		t.Error("expected RecordDownload even on cache error")
 	}
 }
@@ -306,13 +318,13 @@ func TestPool_StartAndProcess(t *testing.T) {
 	// Wait for processing
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		if len(db.recordCalls) > 0 {
+		if db.recordCount() > 0 {
 			break
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
 
-	if len(db.recordCalls) == 0 {
+	if db.recordCount() == 0 {
 		t.Error("job was not processed within timeout")
 	}
 }
