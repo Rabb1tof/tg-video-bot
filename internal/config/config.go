@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -29,6 +30,12 @@ type Config struct {
 	CookiesFile string // путь к cookies.txt в Netscape-формате (для VK, TikTok и др.)
 	VKUsername  string // логин ВКонтакте (альтернатива cookies)
 	VKPassword  string // пароль ВКонтакте
+
+	// Администраторы бота (могут использовать /stats, /addadmin и т.д.)
+	AdminIDs []int64 // из ADMIN_IDS в .env, дополнительно хранятся в PostgreSQL
+
+	// PostgreSQL
+	DatabaseURL string // DATABASE_URL (postgres://user:pass@host:5432/db?sslmode=disable)
 }
 
 func Load() *Config {
@@ -49,6 +56,8 @@ func Load() *Config {
 		CookiesFile:      getEnv("COOKIES_FILE", ""),
 		VKUsername:       getEnv("VK_USERNAME", ""),
 		VKPassword:       getEnv("VK_PASSWORD", ""),
+		AdminIDs:         parseInt64List(getEnv("ADMIN_IDS", "")),
+		DatabaseURL:      mustEnv("DATABASE_URL"),
 	}
 }
 
@@ -83,4 +92,19 @@ func getInt(key string, def int) int {
 		}
 	}
 	return def
+}
+
+func parseInt64List(s string) []int64 {
+	if s == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	ids := make([]int64, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if id, err := strconv.ParseInt(p, 10, 64); err == nil {
+			ids = append(ids, id)
+		}
+	}
+	return ids
 }

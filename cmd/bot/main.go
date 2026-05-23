@@ -15,6 +15,7 @@ import (
 	"github.com/tg-video-bot/bot/internal/bot"
 	"github.com/tg-video-bot/bot/internal/cache"
 	"github.com/tg-video-bot/bot/internal/config"
+	"github.com/tg-video-bot/bot/internal/db"
 	"github.com/tg-video-bot/bot/internal/downloader"
 	"github.com/tg-video-bot/bot/internal/worker"
 )
@@ -45,6 +46,21 @@ func main() {
 		}
 	}
 	logger.Info("redis connected", "addr", cfg.RedisAddr)
+
+	// ── PostgreSQL ─────────────────────────────────────────────────────────────
+	var pgDB *db.DB
+	{
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		var err error
+		pgDB, err = db.New(ctx, cfg.DatabaseURL)
+		if err != nil {
+			logger.Error("postgres connect failed", "err", err)
+			os.Exit(1)
+		}
+	}
+	defer pgDB.Close()
+	logger.Info("postgres connected")
 
 	// ── yt-dlp ────────────────────────────────────────────────────────────
 	if !downloader.IsAvailable() {
@@ -85,12 +101,12 @@ func main() {
 	}()
 
 	// ── Worker pool ────────────────────────────────────────────────────────
-	pool := worker.NewPool(cfg.WorkerCount, redisCache, dl, api,
+	pool := worker.NewPool(cfg.WorkerCount, redisCache, pgDB, dl, api,
 		cfg.StorageChannelID, api.Self.UserName, logger)
 	pool.Start(ctx)
 
 	// ── Register handlers & start polling ──────────────────────────────────
-	handler := bot.NewHandler(api, cfg, redisCache, pool, logger)
+	handler := bot.NewHandler(api, cfg, redisCache, pgDB, pool, logger)
 
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 30

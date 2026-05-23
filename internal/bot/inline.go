@@ -99,12 +99,12 @@ func (h *Handler) showVideoHistoryInline(q *tgbotapi.InlineQuery) {
 	history, err := h.cache.GetVideoHistory(ctx, q.From.ID)
 	if err != nil {
 		h.log.Error("get video history failed", "err", err)
-		h.answerInlinePersonal(q.ID, []interface{}{usageArticle(h.api.Self.UserName)}, 300, true)
+		h.answerInlinePersonal(q.ID, []interface{}{usageArticle(h.botName)}, 300, true)
 		return
 	}
 
 	if len(history) == 0 {
-		h.answerInlinePersonal(q.ID, []interface{}{usageArticle(h.api.Self.UserName)}, 30, true)
+		h.answerInlinePersonal(q.ID, []interface{}{usageArticle(h.botName)}, 30, true)
 		return
 	}
 
@@ -127,7 +127,7 @@ func (h *Handler) showVideoHistoryInline(q *tgbotapi.InlineQuery) {
 func (h *Handler) handleInlineCommand(q *tgbotapi.InlineQuery, command string) {
 	parts := strings.Fields(command)
 	if len(parts) == 0 {
-		h.answerInline(q.ID, []interface{}{usageArticle(h.api.Self.UserName)}, 300)
+		h.answerInline(q.ID, []interface{}{usageArticle(h.botName)}, 300)
 		return
 	}
 
@@ -136,7 +136,7 @@ func (h *Handler) handleInlineCommand(q *tgbotapi.InlineQuery, command string) {
 
 	switch cmd {
 	case "/help", "/start":
-		result = helpInlineArticle(h.api.Self.UserName)
+		result = helpInlineArticle(h.botName)
 	case "/stats":
 		result = statsInlineArticle(h)
 	case "/youtube":

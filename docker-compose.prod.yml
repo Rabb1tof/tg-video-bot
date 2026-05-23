@@ -21,13 +21,33 @@ services:
     volumes:
       - redis-data:/data
 
+  # ── PostgreSQL ───────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: botdb
+      POSTGRES_USER: bot
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bot -d botdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   # ── Bot ────────────────────────────────────────────────────────────────────
   bot:
     image: ghcr.io/rabb1tof/tg-video-bot:latest
     restart: unless-stopped
     depends_on:
-      - redis
-      - telegram-bot-api
+      redis:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      telegram-bot-api:
+        condition: service_started
     environment:
       TELEGRAM_TOKEN: ${TELEGRAM_TOKEN}
       TELEGRAM_LOCAL_API: http://telegram-bot-api:8081
@@ -41,9 +61,12 @@ services:
       HOT_CACHE_TTL_HOURS: ${HOT_CACHE_TTL_HOURS:-168}
       RATE_LIMIT_PER_HOUR: ${RATE_LIMIT_PER_HOUR:-50}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      ADMIN_IDS: ${ADMIN_IDS:-}
+      DATABASE_URL: postgres://bot:${POSTGRES_PASSWORD}@postgres:5432/botdb?sslmode=disable
     volumes:
       - /tmp/tg-video-bot:/tmp/tg-video-bot
 
 volumes:
   redis-data:
+  postgres-data:
   telegram-bot-api-data:

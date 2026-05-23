@@ -11,6 +11,7 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
 	"github.com/tg-video-bot/bot/internal/cache"
+	"github.com/tg-video-bot/bot/internal/db"
 	"github.com/tg-video-bot/bot/internal/downloader"
 )
 
@@ -27,9 +28,10 @@ type Pool struct {
 	jobs             chan Job
 	inProgress       sync.Map
 	inlineMessageIDs sync.Map // resultID -> inlineMessageID
-	cache            *cache.Cache
-	dl               *downloader.Downloader
-	api              *tgbotapi.BotAPI
+	cache            poolCache
+	db               poolDB
+	dl               videoDownloader
+	api              telegramSender
 	channelID        int64
 	botUsername      string
 	log              *slog.Logger
@@ -38,15 +40,16 @@ type Pool struct {
 func NewPool(
 	size int,
 	c *cache.Cache,
+	pgDB *db.DB,
 	dl *downloader.Downloader,
 	api *tgbotapi.BotAPI,
 	channelID int64,
 	botUsername string,
 	log *slog.Logger,
-) *Pool {
+) *Pool { //nolint:gocritic // concrete types kept for public constructor compatibility
 	return &Pool{
 		size: size, jobs: make(chan Job, size*4),
-		cache: c, dl: dl, api: api,
+		cache: c, db: pgDB, dl: dl, api: api,
 		channelID: channelID, botUsername: botUsername,
 		log: log,
 	}
@@ -110,6 +113,9 @@ func (p *Pool) process(ctx context.Context, job Job, workerID int) {
 		} else {
 			p.notify(job.UserID, fmt.Sprintf("❌ Не удалось скачать видео:\n%s", err.Error()))
 		}
+		if err2 := p.db.RecordDownload(context.Background(), job.UserID, job.URL, "", false); err2 != nil {
+			log.Error("record download failed", "err", err2)
+		}
 		return
 	}
 	defer p.dl.Cleanup(result.TmpDir)
@@ -129,6 +135,9 @@ func (p *Pool) process(ctx context.Context, job Job, workerID int) {
 	if err != nil {
 		log.Error("telegram upload failed", "err", err)
 		p.notify(job.UserID, "❌ Не удалось загрузить видео в Telegram. Попробуй позже.")
+		if err2 := p.db.RecordDownload(context.Background(), job.UserID, job.URL, result.Title, false); err2 != nil {
+			log.Error("record download failed", "err", err2)
+		}
 		return
 	}
 
@@ -167,6 +176,9 @@ func (p *Pool) process(ctx context.Context, job Job, workerID int) {
 		log.Info("video sent to PM", "user_id", job.UserID)
 	}
 
+	if err := p.db.RecordDownload(context.Background(), job.UserID, job.URL, result.Title, true); err != nil {
+		log.Error("record download failed", "err", err)
+	}
 	log.Info("job completed", "elapsed", time.Since(start))
 }
 
