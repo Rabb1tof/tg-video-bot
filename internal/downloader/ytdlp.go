@@ -52,15 +52,7 @@ func (d *Downloader) Download(ctx context.Context, url string) (*Result, error) 
 
 	outputTemplate := "video.%(ext)s"
 
-	args := []string{
-		"-f", "best",
-		"--no-playlist",
-		fmt.Sprintf("--max-filesize=%dm", d.maxSizeMB),
-		"-o", outputTemplate,
-		"--no-warnings",
-		"--print", "title",
-		"--no-simulate",
-	}
+	args := d.baseArgs(outputTemplate)
 
 	// Глобальные куки (применяются ко всем платформам если заданы)
 	if d.cookiesFile != "" {
@@ -141,6 +133,28 @@ func Version(ctx context.Context) string {
 		return "unknown"
 	}
 	return strings.TrimSpace(string(out))
+}
+
+// baseArgs builds the platform-independent yt-dlp arguments: format selection,
+// quality preference and output. Extracted so it can be unit-tested.
+func (d *Downloader) baseArgs(outputTemplate string) []string {
+	return []string{
+		// Берём лучшее видео + лучшее аудио и склеиваем через ffmpeg.
+		// Прогрессивный `best` отдаёт максимум 360p/720p на длинных YouTube-видео,
+		// поэтому используем раздельные DASH-потоки. `/b` — фоллбэк, если merge невозможен.
+		"-f", "bv*+ba/b",
+		// Предпочитаем h264 (Telegram проигрывает inline без перекодирования),
+		// разрешение ~1080 (res = меньшая сторона → корректно и для 16:9, и для 9:16 reels),
+		// аудио m4a. h264 на YouTube ограничен 1080p, что заодно держит размер файла в узде.
+		"-S", "vcodec:h264,res:1080,acodec:m4a",
+		"--merge-output-format", "mp4",
+		"--no-playlist",
+		fmt.Sprintf("--max-filesize=%dm", d.maxSizeMB),
+		"-o", outputTemplate,
+		"--no-warnings",
+		"--print", "title",
+		"--no-simulate",
+	}
 }
 
 // platformArgs returns extra yt-dlp arguments for the given URL based on domain.

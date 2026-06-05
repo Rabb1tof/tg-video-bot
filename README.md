@@ -103,7 +103,7 @@ docker compose logs -f bot
 | `TELEGRAM_API_HASH` | ✅ | — | API Hash с my.telegram.org |
 | `STORAGE_CHANNEL_ID` | ✅ | — | ID приватного канала-хранилища |
 | `WORKER_COUNT` | — | `5` | Параллельных загрузок |
-| `MAX_FILE_SIZE_MB` | — | `500` | Максимальный размер файла (МБ) |
+| `MAX_FILE_SIZE_MB` | — | `1900` | Максимальный размер файла (МБ); потолок локального Bot API — 2 ГБ |
 | `CACHE_TTL_HOURS` | — | `24` | TTL обычных видео в кэше (часы) |
 | `HOT_CACHE_TTL_HOURS` | — | `168` | TTL топ-3 видео пользователя (часы) |
 | `REDIS_POOL_SIZE` | — | `20` | Размер пула соединений Redis |

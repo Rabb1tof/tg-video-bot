@@ -48,7 +48,7 @@ func Load() *Config {
 		RedisDB:          getInt("REDIS_DB", 0),
 		RedisPoolSize:    getInt("REDIS_POOL_SIZE", 20),
 		WorkerCount:      getInt("WORKER_COUNT", 5),
-		MaxFileSizeMB:    getInt("MAX_FILE_SIZE_MB", 500),
+		MaxFileSizeMB:    getInt("MAX_FILE_SIZE_MB", 1900),
 		CacheTTL:         time.Duration(getInt("CACHE_TTL_HOURS", 24)) * time.Hour,
 		HotCacheTTL:      time.Duration(getInt("HOT_CACHE_TTL_HOURS", 168)) * time.Hour, // 168h = 7 дней для топ-3
 		RateLimitPerHour: getInt("RATE_LIMIT_PER_HOUR", 5),

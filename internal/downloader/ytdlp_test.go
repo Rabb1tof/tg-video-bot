@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -83,6 +84,62 @@ func TestSanitizeError(t *testing.T) {
 				t.Errorf("sanitizeError(%q) = %q; want %q", tc.input, got, tc.want)
 			}
 		})
+	}
+}
+
+// flagValue returns the token immediately following flag in args.
+func flagValue(args []string, flag string) (string, bool) {
+	for i, a := range args {
+		if a == flag && i+1 < len(args) {
+			return args[i+1], true
+		}
+	}
+	return "", false
+}
+
+func TestBaseArgs(t *testing.T) {
+	t.Parallel()
+	d := &Downloader{maxSizeMB: 1900}
+	args := d.baseArgs("video.%(ext)s")
+
+	// Format selector must request the merged best video + best audio stream,
+	// NOT the progressive `best` which caps long YouTube videos at 360p/720p.
+	f, ok := flagValue(args, "-f")
+	if !ok {
+		t.Fatalf("baseArgs missing -f flag: %v", args)
+	}
+	if f == "best" {
+		t.Errorf("-f is progressive %q; want merged selector (regression: caps quality)", f)
+	}
+	if f != "bv*+ba/b" {
+		t.Errorf("-f = %q; want %q", f, "bv*+ba/b")
+	}
+
+	// Prefer h264 + ~1080p so Telegram streams the video inline without transcoding.
+	sortArg, ok := flagValue(args, "-S")
+	if !ok {
+		t.Fatalf("baseArgs missing -S format-sort flag: %v", args)
+	}
+	if !strings.Contains(sortArg, "vcodec:h264") {
+		t.Errorf("-S = %q; want it to prefer vcodec:h264", sortArg)
+	}
+	if !strings.Contains(sortArg, "res:1080") {
+		t.Errorf("-S = %q; want it to target res:1080", sortArg)
+	}
+
+	// Merged DASH streams must be muxed into an mp4 container.
+	if mf, ok := flagValue(args, "--merge-output-format"); !ok || mf != "mp4" {
+		t.Errorf("--merge-output-format = %q (present=%v); want %q", mf, ok, "mp4")
+	}
+
+	// Size limit must reflect the configured maxSizeMB.
+	if !slices.Contains(args, "--max-filesize=1900m") {
+		t.Errorf("missing --max-filesize=1900m in %v", args)
+	}
+
+	// Output template is passed through unchanged.
+	if o, ok := flagValue(args, "-o"); !ok || o != "video.%(ext)s" {
+		t.Errorf("-o = %q (present=%v); want %q", o, ok, "video.%(ext)s")
 	}
 }
 

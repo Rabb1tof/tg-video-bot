@@ -161,8 +161,8 @@ func TestLoad_Defaults(t *testing.T) {
 	if cfg.WorkerCount != 5 {
 		t.Errorf("WorkerCount default = %d; want 5", cfg.WorkerCount)
 	}
-	if cfg.MaxFileSizeMB != 500 {
-		t.Errorf("MaxFileSizeMB default = %d; want 500", cfg.MaxFileSizeMB)
+	if cfg.MaxFileSizeMB != 1900 {
+		t.Errorf("MaxFileSizeMB default = %d; want 1900", cfg.MaxFileSizeMB)
 	}
 	if cfg.CacheTTL != 24*time.Hour {
 		t.Errorf("CacheTTL default = %v; want 24h", cfg.CacheTTL)
