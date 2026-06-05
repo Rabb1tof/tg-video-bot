@@ -239,6 +239,42 @@ func TestProcess_Success(t *testing.T) {
 	}
 }
 
+func TestProcess_SetsVideoMetadata(t *testing.T) {
+	t.Parallel()
+	tmpDir := t.TempDir()
+	dl := &mockDownloader{result: &downloader.Result{
+		FilePath: tmpDir + "/video.mp4",
+		Title:    "Meta",
+		Duration: 212,
+		TmpDir:   tmpDir,
+	}}
+	api := &mockTelegramSender{fileID: "fid"}
+	p := newProcessTestPool(dl, api, &mockPoolCache{}, &mockPoolDB{})
+
+	job := Job{URL: "https://youtube.com/watch?v=meta", UserID: 7}
+	p.inProgress.Store(job.URL, job)
+	p.process(context.Background(), job, 1)
+
+	// The first Send is the channel upload (a VideoConfig). Telegram needs
+	// SupportsStreaming + Duration set so the video plays inline with the right
+	// aspect ratio instead of a squished ~1:1 bubble.
+	api.mu.Lock()
+	defer api.mu.Unlock()
+	if len(api.sent) == 0 {
+		t.Fatal("expected a channel upload Send")
+	}
+	vc, ok := api.sent[0].(tgbotapi.VideoConfig)
+	if !ok {
+		t.Fatalf("first send is %T; want tgbotapi.VideoConfig", api.sent[0])
+	}
+	if !vc.SupportsStreaming {
+		t.Error("channel upload should set SupportsStreaming=true")
+	}
+	if vc.Duration != 212 {
+		t.Errorf("channel upload Duration = %d; want 212", vc.Duration)
+	}
+}
+
 func TestProcess_LongTitle(t *testing.T) {
 	t.Parallel()
 	longTitle := string(make([]byte, 150))

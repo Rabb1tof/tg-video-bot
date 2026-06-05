@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -19,6 +20,7 @@ func (e *UnavailableError) Error() string { return e.msg }
 type Result struct {
 	FilePath string // absolute path to the .mp4 file
 	Title    string // video title
+	Duration int    // длительность в секундах (0 если неизвестна)
 	TmpDir   string // temp directory — caller must call Cleanup
 }
 
@@ -100,17 +102,23 @@ func (d *Downloader) Download(ctx context.Context, url string) (*Result, error) 
 
 	filePath := filepath.Join(tmpDir, entries[0].Name())
 
-	// --print title outputs the title as first line of stdout
+	// --print outputs "<duration>\t<title>" as the first line of stdout.
 	title := ""
+	duration := 0
 	if raw := strings.TrimSpace(stdout.String()); raw != "" {
-		title = strings.SplitN(raw, "\n", 2)[0]
-		title = strings.TrimSpace(title)
+		line, _, _ := strings.Cut(raw, "\n")
+		if dur, rest, ok := strings.Cut(line, "\t"); ok {
+			duration = parseDurationSeconds(dur)
+			title = strings.TrimSpace(rest)
+		} else {
+			title = strings.TrimSpace(line)
+		}
 	}
 	if title == "" {
 		title = strings.TrimSuffix(entries[0].Name(), filepath.Ext(entries[0].Name()))
 	}
 
-	return &Result{FilePath: filePath, Title: title, TmpDir: tmpDir}, nil
+	return &Result{FilePath: filePath, Title: title, Duration: duration, TmpDir: tmpDir}, nil
 }
 
 // Cleanup removes the temporary download directory.
@@ -148,11 +156,17 @@ func (d *Downloader) baseArgs(outputTemplate string) []string {
 		// аудио m4a. h264 на YouTube ограничен 1080p, что заодно держит размер файла в узде.
 		"-S", "vcodec:h264,res:1080,acodec:m4a",
 		"--merge-output-format", "mp4",
+		// Переносим moov-атом в начало файла (faststart). Без этого Telegram не может
+		// прочитать размеры склеенного ffmpeg видео и показывает 16:9 сжатым в квадрат
+		// ~1:1; faststart также включает потоковое воспроизведение без полной загрузки.
+		"--postprocessor-args", "Merger:-movflags +faststart",
 		"--no-playlist",
 		fmt.Sprintf("--max-filesize=%dm", d.maxSizeMB),
 		"-o", outputTemplate,
 		"--no-warnings",
-		"--print", "title",
+		// Печатаем длительность и заголовок одной строкой через таб: duration уходит
+		// в Telegram, иначе до начала воспроизведения показывается 0:00.
+		"--print", "%(duration)s\t%(title)s",
 		"--no-simulate",
 	}
 }
@@ -179,6 +193,21 @@ func (d *Downloader) platformArgs(rawURL string) []string {
 	}
 
 	return nil
+}
+
+// parseDurationSeconds parses yt-dlp's %(duration)s field, which may be an
+// integer, a float ("212.0") or "NA". It returns 0 when the value is unknown,
+// negative or unparseable.
+func parseDurationSeconds(s string) int {
+	s = strings.TrimSpace(s)
+	if s == "" || s == "NA" {
+		return 0
+	}
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil || f < 0 {
+		return 0
+	}
+	return int(f)
 }
 
 // sanitizeError trims noisy yt-dlp stderr prefixes and maps known errors to

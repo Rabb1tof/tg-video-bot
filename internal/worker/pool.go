@@ -120,7 +120,7 @@ func (p *Pool) process(ctx context.Context, job Job, workerID int) {
 	}
 	defer p.dl.Cleanup(result.TmpDir)
 
-	log.Info("uploading to channel", "file", result.FilePath)
+	log.Info("uploading to channel", "file", result.FilePath, "duration_sec", result.Duration)
 
 	videoUpload := tgbotapi.NewVideo(p.channelID, tgbotapi.FilePath(result.FilePath))
 	// Limit caption length to 1024 characters (Telegram limit)
@@ -130,6 +130,11 @@ func (p *Pool) process(ctx context.Context, job Job, workerID int) {
 	}
 	videoUpload.Caption = caption
 	videoUpload.DisableNotification = true
+	// Длительность + потоковое воспроизведение. Размеры (width/height) Telegram
+	// определяет сам из faststart-mp4 (см. baseArgs в downloader) — библиотека
+	// VideoConfig их не пробрасывает, поэтому полагаемся на корректный moov-атом.
+	videoUpload.Duration = result.Duration
+	videoUpload.SupportsStreaming = true
 
 	msg, err := p.api.Send(videoUpload)
 	if err != nil {

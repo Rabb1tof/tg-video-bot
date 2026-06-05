@@ -132,6 +132,17 @@ func TestBaseArgs(t *testing.T) {
 		t.Errorf("--merge-output-format = %q (present=%v); want %q", mf, ok, "mp4")
 	}
 
+	// moov atom must be moved to the front (faststart) so Telegram can read the
+	// video dimensions — otherwise merged 16:9 videos display squished to ~1:1.
+	if ppa, ok := flagValue(args, "--postprocessor-args"); !ok || !strings.Contains(ppa, "+faststart") {
+		t.Errorf("--postprocessor-args = %q (present=%v); want it to contain +faststart", ppa, ok)
+	}
+
+	// duration must be printed alongside the title so it can be sent to Telegram.
+	if pr, ok := flagValue(args, "--print"); !ok || !strings.Contains(pr, "duration") {
+		t.Errorf("--print = %q (present=%v); want it to include duration", pr, ok)
+	}
+
 	// Size limit must reflect the configured maxSizeMB.
 	if !slices.Contains(args, "--max-filesize=1900m") {
 		t.Errorf("missing --max-filesize=1900m in %v", args)
@@ -140,6 +151,31 @@ func TestBaseArgs(t *testing.T) {
 	// Output template is passed through unchanged.
 	if o, ok := flagValue(args, "-o"); !ok || o != "video.%(ext)s" {
 		t.Errorf("-o = %q (present=%v); want %q", o, ok, "video.%(ext)s")
+	}
+}
+
+func TestParseDurationSeconds(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		in   string
+		want int
+	}{
+		{"integer seconds", "212", 212},
+		{"float seconds", "212.0", 212},
+		{"float truncates down", "212.9", 212},
+		{"leading/trailing space", "  120.5  ", 120},
+		{"NA is zero", "NA", 0},
+		{"empty is zero", "", 0},
+		{"garbage is zero", "abc", 0},
+		{"negative is zero", "-5", 0},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := parseDurationSeconds(tc.in); got != tc.want {
+				t.Errorf("parseDurationSeconds(%q) = %d; want %d", tc.in, got, tc.want)
+			}
+		})
 	}
 }
 
