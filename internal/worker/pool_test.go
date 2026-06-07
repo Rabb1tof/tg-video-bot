@@ -3,7 +3,9 @@ package worker
 import (
 	"log/slog"
 	"os"
+	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 // newTestPool creates a Pool with nil external deps — safe for testing
@@ -37,6 +39,49 @@ func TestTruncateCaption(t *testing.T) {
 				t.Errorf("truncateCaption(%d chars) = %d chars; want %d", len(tc.input), len(got), len(tc.want))
 			}
 		})
+	}
+}
+
+// --- truncateRunes ---
+//
+// Regression test for "Bad Request: strings must be encoded in UTF-8": titles
+// with Cyrillic (2-byte) and emoji (4-byte) runes must never be sliced mid-rune.
+func TestTruncateRunes_AlwaysValidUTF8(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name  string
+		input string
+		limit int
+	}{
+		{"cyrillic over limit", strings.Repeat("я", 200), 100},
+		{"emoji over limit", strings.Repeat("🤣", 200), 100},
+		{"mixed over limit", strings.Repeat("аб🤣", 100), 100},
+		{"limit smaller than ellipsis", strings.Repeat("я", 10), 2},
+		{"ascii over limit", strings.Repeat("a", 200), 100},
+		{"under limit unchanged", "Больше таких роликов у нас в тг🤣", 100},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := truncateRunes(tc.input, tc.limit)
+			if !utf8.ValidString(got) {
+				t.Fatalf("truncateRunes produced invalid UTF-8: %q", got)
+			}
+			if n := utf8.RuneCountInString(got); n > tc.limit {
+				t.Errorf("result has %d runes; want <= %d", n, tc.limit)
+			}
+		})
+	}
+}
+
+// truncateRunes must drop invalid UTF-8 bytes rather than pass them through.
+func TestTruncateRunes_StripsInvalidUTF8(t *testing.T) {
+	t.Parallel()
+	got := truncateRunes("ab\xffcd", 100)
+	if !utf8.ValidString(got) {
+		t.Fatalf("got invalid UTF-8: %q", got)
+	}
+	if got != "abcd" {
+		t.Errorf("truncateRunes = %q; want %q", got, "abcd")
 	}
 }
 

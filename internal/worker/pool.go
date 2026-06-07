@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
@@ -123,12 +125,7 @@ func (p *Pool) process(ctx context.Context, job Job, workerID int) {
 	log.Info("uploading to channel", "file", result.FilePath, "duration_sec", result.Duration)
 
 	videoUpload := tgbotapi.NewVideo(p.channelID, tgbotapi.FilePath(result.FilePath))
-	// Limit caption length to 1024 characters (Telegram limit)
-	caption := result.Title
-	if len(caption) > 100 {
-		caption = caption[:100] + "..."
-	}
-	videoUpload.Caption = caption
+	videoUpload.Caption = truncateRunes(result.Title, channelCaptionRunes)
 	videoUpload.DisableNotification = true
 	// Длительность + потоковое воспроизведение. Размеры (width/height) Telegram
 	// определяет сам из faststart-mp4 (см. baseArgs в downloader) — библиотека
@@ -187,12 +184,35 @@ func (p *Pool) process(ctx context.Context, job Job, workerID int) {
 	log.Info("job completed", "elapsed", time.Since(start))
 }
 
+// Telegram caption limits, measured in runes. The channel gets a short caption;
+// the user's PM gets a longer one (Telegram's hard limit is 1024 runes).
+const (
+	channelCaptionRunes = 100
+	pmCaptionRunes      = 1000
+)
+
 func truncateCaption(s string) string {
-	const maxCaptionLength = 1000
-	if len(s) <= maxCaptionLength {
+	return truncateRunes(s, pmCaptionRunes)
+}
+
+// truncateRunes shortens s to at most limit runes (including a trailing
+// ellipsis when truncation happens) and strips any invalid UTF-8. It slices on
+// rune boundaries: a plain byte slice such as s[:100] can cut a multi-byte rune
+// (Cyrillic is 2 bytes, emoji 4) in half, and Telegram rejects the resulting
+// invalid UTF-8 with "Bad Request: strings must be encoded in UTF-8".
+func truncateRunes(s string, limit int) string {
+	s = strings.ToValidUTF8(s, "")
+	runes := []rune(s)
+	if len(runes) <= limit {
 		return s
 	}
-	return s[:maxCaptionLength-3] + "..."
+	const ellipsis = "..."
+	ellipsisLen := utf8.RuneCountInString(ellipsis)
+	if limit <= ellipsisLen {
+		// No room for both text and ellipsis — hard-cut to the limit.
+		return string(runes[:max(limit, 0)])
+	}
+	return string(runes[:limit-ellipsisLen]) + ellipsis
 }
 
 func (p *Pool) notify(userID int64, text string) {

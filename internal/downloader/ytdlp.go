@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 // UnavailableError is returned when yt-dlp reports that the video is private
@@ -226,8 +227,11 @@ func sanitizeError(s string) string {
 		return "это видео недоступно для скачивания"
 	}
 
-	if len(s) > 300 {
-		s = s[:300] + "…"
+	// Truncate on a rune boundary: this message is later sent to Telegram, which
+	// rejects invalid UTF-8 ("strings must be encoded in UTF-8") if a slice cuts
+	// a multi-byte rune in half.
+	if utf8.RuneCountInString(s) > 300 {
+		s = string([]rune(s)[:300]) + "…"
 	}
 	return s
 }
