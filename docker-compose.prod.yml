@@ -40,6 +40,10 @@ services:
   # ── Bot ────────────────────────────────────────────────────────────────────
   bot:
     image: ghcr.io/rabb1tof/tg-video-bot:latest
+    # Always re-pull :latest on deploy. Without this, Docker reuses the cached
+    # local image because the tag string is unchanged, and a redeploy keeps
+    # running the old binary (the Easypanel floating-:latest trap).
+    pull_policy: always
     restart: unless-stopped
     depends_on:
       redis:

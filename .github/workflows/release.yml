@@ -76,6 +76,8 @@ jobs:
         with:
           context: .
           push: true
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
@@ -135,5 +137,5 @@ jobs:
     steps:
       - name: Trigger Easy Panel Deploy
         run: |
-          curl -X POST "http://178.17.51.21:3000/api/compose/deploy/ca706ab20f87fb1f38d937331e9a51e20e9d05c322689a29" \
+          curl -X POST "http://178.17.51.21:3000/api/compose/deploy/ca706ab20f87fb1f38d937331e9a51e20e9d05c322689a29?forceRebuild=true" \
             -H "Authorization: Bearer ${{ secrets.EASY_PANEL_TOKEN }}"

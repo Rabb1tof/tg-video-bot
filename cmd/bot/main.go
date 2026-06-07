@@ -20,6 +20,11 @@ import (
 	"github.com/tg-video-bot/bot/internal/worker"
 )
 
+// version is injected at build time via -ldflags "-X main.version=...".
+// It defaults to "dev" for local builds so the startup log always reports
+// exactly which binary is running.
+var version = "dev"
+
 func main() {
 	_ = godotenv.Load() // load .env if present (dev convenience)
 
@@ -33,7 +38,7 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel}))
 	slog.SetDefault(logger)
 
-	logger.Info("tg-video-bot starting", "version", "1.4.1")
+	logger.Info("tg-video-bot starting", "version", version)
 
 	// ── Redis ──────────────────────────────────────────────────────────────
 	redisCache := cache.New(cfg.RedisAddr, cfg.RedisPassword, cfg.RedisDB, cfg.RedisPoolSize, cfg.CacheTTL, cfg.HotCacheTTL)
